@@ -8,6 +8,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:gold_invest/app/data/models/app_user.dart';
 import 'package:gold_invest/app/data/repositories/user_repository.dart';
 import 'package:gold_invest/app/services/logger_service.dart';
+import 'package:gold_invest/app/utils/app_config.dart';
 import 'package:gold_invest/core/constants.dart';
 import 'package:gold_invest/services/auth_service.dart';
 
@@ -115,17 +116,18 @@ class AuthController extends GetxController {
     if (isLoadingProfile.value) {
       return current == '/splash' ? null : '/splash';
     }
-    // 4. Not approved.
+    // 4. Not approved — skip in dev when bypassApproval is enabled.
     final user = appUser.value;
-    if (user == null || !user.isApproved) {
+    final bypass = Get.find<AppConfig>().bypassApproval;
+    if (!bypass && (user == null || !user.isApproved)) {
       return current == '/pending' ? null : '/pending';
     }
-    // 5. Approved.
+    // 5. Approved (or approval bypassed).
     final atPreAuth = current == '/login' ||
         current == '/register' ||
         current == '/pending' ||
         current == '/splash';
-    if (user.isAdmin) {
+    if (user?.isAdmin ?? false) {
       return atPreAuth ? '/admin' : null;
     } else {
       if (atPreAuth || current.startsWith('/admin')) return '/';
