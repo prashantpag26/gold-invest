@@ -18,7 +18,10 @@ class AdminPlansController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-    _sub = _repo.watchAllPlans().listen((p) => allPlans.assignAll(p));
+    _sub = _repo.watchAllPlans().listen(
+      (p) => allPlans.assignAll(p),
+      onError: (_) {},
+    );
   }
 
   @override
@@ -46,6 +49,37 @@ class AdminPlansController extends GetxController {
   }
 
   Future<void> deletePlan(String id) => _repo.deletePlan(id);
+
   Future<void> setActive(String id, bool active) =>
       _repo.setActive(id, active);
+
+  /// Creates the four standard plan denominations using fixed document IDs
+  /// so the operation is idempotent — safe to run multiple times.
+  static const _samplePlans = [
+    ('plan_1g',  '1g Monthly Saver',  1.0,  12, 600.0),
+    ('plan_2g',  '2g Monthly Saver',  2.0,  12, 1200.0),
+    ('plan_5g',  '5g Gold Plan',      5.0,  12, 3000.0),
+    ('plan_10g', '10g Gold Builder',  10.0, 12, 6000.0),
+  ];
+
+  Future<void> seedSamplePlans() async {
+    isBusy.value = true;
+    try {
+      for (final (id, name, grams, months, amount) in _samplePlans) {
+        await _repo.upsertPlan(
+          id,
+          InvestmentPlan(
+            id: id,
+            name: name,
+            grams: grams,
+            durationMonths: months,
+            monthlyAmount: amount,
+            active: true,
+          ),
+        );
+      }
+    } finally {
+      isBusy.value = false;
+    }
+  }
 }

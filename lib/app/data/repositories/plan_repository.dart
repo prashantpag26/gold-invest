@@ -37,6 +37,11 @@ class PlanRepository {
     return ref.id;
   }
 
+  /// Idempotent upsert using a fixed [docId]. Used by the in-app seed so
+  /// running it multiple times doesn't create duplicates.
+  Future<void> upsertPlan(String docId, InvestmentPlan plan) =>
+      _col.doc(docId).set(plan.toMap(), SetOptions(merge: true));
+
   Future<void> updatePlan(InvestmentPlan plan) =>
       _col.doc(plan.id).update(plan.toMap());
 

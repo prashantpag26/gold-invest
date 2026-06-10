@@ -6,6 +6,7 @@ import '../../../../../business/delivery_calculator.dart';
 import '../controllers/admin_dashboard_controller.dart';
 import '../../shell/controllers/admin_shell_controller.dart';
 import '../../gold_rate/controllers/gold_rate_controller.dart';
+import '../../plans/controllers/admin_plans_controller.dart';
 import '../../../../../app/modules/auth/controllers/auth_controller.dart';
 import '../../../../../app/routes/app_routes.dart';
 import '../../../../../app/widgets/gold_rate_card.dart';
@@ -95,6 +96,75 @@ class AdminDashboardView extends GetView<AdminDashboardController> {
                 ),
               ],
             ),
+            // ── First-time setup banner ─────────────────────────────────
+            Builder(builder: (context) {
+              final plansCtrl = Get.find<AdminPlansController>();
+              final goldCtrl = Get.find<GoldRateController>();
+              final noPlans = plansCtrl.allPlans.isEmpty;
+              final noRate = goldCtrl.currentRate.value == null;
+              if (!noPlans && !noRate) return const SizedBox.shrink();
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 16),
+                  Text('First-time setup',
+                      style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 8),
+                  Card(
+                    color: Theme.of(context)
+                        .colorScheme
+                        .secondaryContainer
+                        .withOpacity(0.4),
+                    child: Column(
+                      children: [
+                        if (noPlans)
+                          Obx(() => ListTile(
+                                leading: const Icon(Icons.auto_awesome,
+                                    color: Colors.amber),
+                                title:
+                                    const Text('No investment plans yet'),
+                                subtitle: const Text(
+                                    'Tap to create 1g, 2g, 5g, 10g plans'),
+                                trailing: plansCtrl.isBusy.value
+                                    ? const SizedBox(
+                                        width: 20,
+                                        height: 20,
+                                        child: CircularProgressIndicator(
+                                            strokeWidth: 2))
+                                    : const Icon(Icons.add_circle,
+                                        color: Colors.green),
+                                onTap: plansCtrl.isBusy.value
+                                    ? null
+                                    : () async {
+                                        await plansCtrl.seedSamplePlans();
+                                        Get.snackbar(
+                                          'Done',
+                                          '4 sample plans created.',
+                                          snackPosition:
+                                              SnackPosition.BOTTOM,
+                                        );
+                                      },
+                              )),
+                        if (noPlans && noRate)
+                          const Divider(height: 1),
+                        if (noRate)
+                          ListTile(
+                            leading: const Icon(Icons.currency_rupee,
+                                color: Colors.amber),
+                            title: const Text('No gold rate set'),
+                            subtitle:
+                                const Text('Tap to set the current rate'),
+                            trailing: const Icon(Icons.edit,
+                                color: Colors.blue),
+                            onTap: () =>
+                                Get.toNamed(AppRoutes.adminGoldRate),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+            }),
             const SizedBox(height: 20),
             Text('Quick actions',
                 style: Theme.of(context).textTheme.titleMedium),
@@ -123,6 +193,13 @@ class AdminDashboardView extends GetView<AdminDashboardController> {
                     title: const Text('Update gold rate'),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: () => Get.toNamed(AppRoutes.adminGoldRate),
+                  ),
+                  const Divider(height: 1),
+                  ListTile(
+                    leading: const Icon(Icons.savings),
+                    title: const Text('Manage plans'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => Get.toNamed(AppRoutes.adminPlans),
                   ),
                 ],
               ),

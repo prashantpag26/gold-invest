@@ -24,11 +24,24 @@ class AdminPlansView extends GetView<AdminPlansController> {
       body: Obx(() {
         final plans = controller.allPlans;
         if (plans.isEmpty) {
-          return const EmptyState(
+          return EmptyState(
             icon: Icons.savings_outlined,
             title: 'No plans yet',
-            subtitle: 'Tap "New plan" to create your first denomination '
-                '(e.g. 1g, 2g, 10g).',
+            subtitle: 'Tap below to seed the 4 standard denominations, '
+                'or use the + button to create custom ones.',
+            action: Obx(() => FilledButton.icon(
+                  onPressed: controller.isBusy.value
+                      ? null
+                      : () => _seedPlans(context),
+                  icon: controller.isBusy.value
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.auto_awesome),
+                  label: const Text('Create sample plans'),
+                )),
           );
         }
         return ListView.builder(
@@ -73,6 +86,28 @@ class AdminPlansView extends GetView<AdminPlansController> {
         );
       }),
     );
+  }
+
+  Future<void> _seedPlans(BuildContext context) async {
+    try {
+      await controller.seedSamplePlans();
+      if (context.mounted) {
+        Get.snackbar(
+          'Done',
+          '4 sample plans created (1g, 2g, 5g, 10g).',
+          snackPosition: SnackPosition.BOTTOM,
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        Get.snackbar(
+          'Error',
+          'Could not seed plans: $e',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Theme.of(context).colorScheme.errorContainer,
+        );
+      }
+    }
   }
 
   Future<void> _editPlan(BuildContext context, InvestmentPlan? plan) {

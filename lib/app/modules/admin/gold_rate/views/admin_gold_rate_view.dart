@@ -111,7 +111,20 @@ class _AdminGoldRateViewState extends State<AdminGoldRateView> {
                 child: isLoading
                     ? const Center(child: CircularProgressIndicator())
                     : current == null
-                        ? const Text('No gold rate set yet. Add one below.')
+                        ? Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('No gold rate set yet. '
+                                  'Enter a price below or use the quick fill.'),
+                              const SizedBox(height: 10),
+                              OutlinedButton.icon(
+                                onPressed: () =>
+                                    setState(() => _price.text = '9500'),
+                                icon: const Icon(Icons.bolt),
+                                label: const Text('Quick fill ₹9,500/g'),
+                              ),
+                            ],
+                          )
                         : Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
