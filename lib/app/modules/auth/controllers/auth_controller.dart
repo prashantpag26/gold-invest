@@ -133,13 +133,12 @@ class AuthController extends GetxController {
     if (isLoadingProfile.value) {
       return current == '/splash' ? null : '/splash';
     }
-    // 4. Not approved — skip in dev when bypassApproval is enabled.
-    final user = appUser.value;
-    final bypass = Get.find<AppConfig>().bypassApproval;
-    if (!bypass && (user == null || !user.isApproved)) {
+    // 4. Not approved (isApproved already factors in bypassApproval for dev).
+    if (!isApproved) {
       return current == '/pending' ? null : '/pending';
     }
-    // 5. Approved (or approval bypassed).
+    // 5. Approved.
+    final user = appUser.value;
     final atPreAuth = current == '/login' ||
         current == '/register' ||
         current == '/pending' ||
@@ -221,6 +220,19 @@ class AuthController extends GetxController {
 
   // ── Convenience getters used by middleware ──────────────────────────────────
   bool get isSignedIn => firebaseUser.value != null;
-  bool get isApproved => appUser.value?.isApproved ?? false;
+
+  /// Returns true if the user is approved — or if bypassApproval is enabled in
+  /// dev config (any signed-in user is treated as approved, skipping the admin
+  /// approval gate in both AuthMiddleware and _targetRoute).
+  bool get isApproved {
+    if (isSignedIn) {
+      final bypass = Get.isRegistered<AppConfig>()
+          ? Get.find<AppConfig>().bypassApproval
+          : false;
+      if (bypass) return true;
+    }
+    return appUser.value?.isApproved ?? false;
+  }
+
   bool get isAdmin => appUser.value?.isAdmin ?? false;
 }
