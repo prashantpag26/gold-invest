@@ -194,25 +194,57 @@ class _PendingCardState extends State<_PendingCard> {
       );
 }
 
-class _AllUsersList extends StatelessWidget {
+class _AllUsersList extends StatefulWidget {
   const _AllUsersList();
+
+  @override
+  State<_AllUsersList> createState() => _AllUsersListState();
+}
+
+class _AllUsersListState extends State<_AllUsersList> {
+  final _scroll = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _scroll.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (_scroll.position.pixels >= _scroll.position.maxScrollExtent - 200) {
+      Get.find<AdminUsersController>().loadMoreUsers();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final ctrl = Get.find<AdminUsersController>();
     return Obx(() {
       final users = ctrl.allUsers;
-      if (users.isEmpty) {
+      if (users.isEmpty && !ctrl.isLoadingMore.value) {
         return const EmptyState(
           icon: Icons.people_outline,
           title: 'No users yet',
         );
       }
       return ListView.separated(
+        controller: _scroll,
         padding: const EdgeInsets.all(16),
-        itemCount: users.length,
+        itemCount: users.length + (ctrl.hasMore.value ? 1 : 0),
         separatorBuilder: (_, __) => const SizedBox(height: 4),
         itemBuilder: (_, i) {
+          if (i == users.length) {
+            return const Padding(
+              padding: EdgeInsets.symmetric(vertical: 16),
+              child: Center(child: CircularProgressIndicator()),
+            );
+          }
           final u = users[i];
           return Card(
             child: ListTile(

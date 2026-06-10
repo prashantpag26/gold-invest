@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 
 import '../../../../data/models/app_user.dart';
@@ -27,11 +28,20 @@ class AdminDeliveriesController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-    _deliverySub = _deliveryRepo.watchAll().listen((d) {
-      allDeliveries.assignAll(d);
-      isLoading.value = false;
-    });
-    _userSub = _userRepo.watchAll().listen((u) => allUsers.assignAll(u));
+    _deliverySub = _deliveryRepo.watchAll().listen(
+      (d) {
+        allDeliveries.assignAll(d);
+        isLoading.value = false;
+      },
+      onError: (e) {
+        debugPrint('[AdminDeliveries] stream error: $e');
+        isLoading.value = false;
+      },
+    );
+    _userSub = _userRepo.watchAll().listen(
+      (u) => allUsers.assignAll(u),
+      onError: (e) => debugPrint('[AdminDeliveries] users error: $e'),
+    );
   }
 
   @override

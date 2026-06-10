@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:gold_invest/core/constants.dart';
 
@@ -30,11 +31,20 @@ class AdminDashboardController extends GetxController {
     super.onInit();
     _pendingSub = _userRepo
         .watchByStatus(UserStatus.pending)
-        .listen((u) => pendingUsers.assignAll(u));
-    _enrollmentSub = _enrollmentRepo.watchAll().listen((e) {
-      allEnrollments.assignAll(e);
-      isLoading.value = false;
-    });
+        .listen(
+          (u) => pendingUsers.assignAll(u),
+          onError: (e) => debugPrint('[AdminDashboard] pending users error: $e'),
+        );
+    _enrollmentSub = _enrollmentRepo.watchAll().listen(
+      (e) {
+        allEnrollments.assignAll(e);
+        isLoading.value = false;
+      },
+      onError: (e) {
+        debugPrint('[AdminDashboard] enrollments error: $e');
+        isLoading.value = false;
+      },
+    );
   }
 
   @override

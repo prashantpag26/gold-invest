@@ -23,11 +23,15 @@ class EnrollmentDetailView extends GetView<EnrollmentDetailController> {
 
   @override
   Widget build(BuildContext context) {
-    final isAdmin = Get.find<AuthController>().isAdmin;
+    final authCtrl = Get.find<AuthController>();
 
     return Scaffold(
       appBar: AppBar(title: const Text('Plan details')),
       body: Obx(() {
+        // Re-read isAdmin inside Obx so admin actions appear as soon as
+        // the appUser profile loads (it may arrive after first render).
+        final isAdmin = authCtrl.isAdmin;
+
         if (controller.isLoading.value) {
           return const Center(child: CircularProgressIndicator());
         }
