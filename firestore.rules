@@ -1,0 +1,108 @@
+rules_version = '2';
+
+// Security rules for the Gold Investment app.
+//
+// Roles: an admin has the custom claim `admin == true` (set by tools/set_admin.js
+// or the setAdminClaim function). Regular users have `status == 'approved'` on
+// their profile before they can read app data.
+//
+// Key invariants enforced here:
+//  • Users may create only their OWN profile, with role=user & status=pending.
+//  • Users may NEVER change their own role or status (anti-privilege-escalation).
+//  • Only admins write plans, gold rates, payments, deliveries, and enrollment
+//    business counters (paymentsMade / missedMonths / status / delivery dates).
+//  • Users may read only their own enrollments, payments and deliveries.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    function isAdmin() {
+      return isSignedIn() && request.auth.token.admin == true;
+    }
+    function profile() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+    function isApproved() {
+      return isSignedIn() && (isAdmin() || profile().status == 'approved');
+    }
+    function enrollmentOwner(id) {
+      return get(/databases/$(database)/documents/enrollments/$(id)).data.userId;
+    }
+
+    // ── Users ──────────────────────────────────────────────────────────────
+    match /users/{uid} {
+      allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+
+      // Register: create only your own doc, with safe defaults.
+      allow create: if isSignedIn()
+        && request.auth.uid == uid
+        && request.resource.data.role == 'user'
+        && request.resource.data.status == 'pending';
+
+      // Update: admins can change anything; a user can edit their own profile
+      // but NOT their role or status.
+      allow update: if isAdmin()
+        || (isSignedIn() && request.auth.uid == uid
+            && request.resource.data.role == resource.data.role
+            && request.resource.data.status == resource.data.status);
+
+      allow delete: if isAdmin();
+    }
+
+    // ── Plans (catalog) ────────────────────────────────────────────────────
+    match /plans/{planId} {
+      allow read: if isApproved();
+      allow write: if isAdmin();
+    }
+
+    // ── Gold rate ──────────────────────────────────────────────────────────
+    match /goldRate/{doc} {
+      allow read: if isApproved();
+      allow write: if isAdmin();
+      match /history/{h} {
+        allow read: if isApproved();
+        allow write: if isAdmin();
+      }
+    }
+
+    // ── App config ─────────────────────────────────────────────────────────
+    match /config/{doc} {
+      allow read: if isApproved();
+      allow write: if isAdmin();
+    }
+
+    // ── Enrollments ────────────────────────────────────────────────────────
+    match /enrollments/{id} {
+      // read covers get + list; a user's list query filters userId == own uid.
+      allow read: if isAdmin()
+        || (isSignedIn() && resource.data.userId == request.auth.uid);
+
+      // A user may enroll themselves; counters must start clean.
+      allow create: if isAdmin()
+        || (isApproved()
+            && request.resource.data.userId == request.auth.uid
+            && request.resource.data.status == 'active'
+            && request.resource.data.paymentsMade == 0
+            && request.resource.data.missedMonths == 0);
+
+      // Business counters / status / delivery dates are admin-only.
+      allow update, delete: if isAdmin();
+
+      // ── Payments (subcollection) ──────────────────────────────────────────
+      match /payments/{paymentId} {
+        allow read: if isSignedIn()
+          && (isAdmin() || enrollmentOwner(id) == request.auth.uid);
+        allow write: if isAdmin();
+      }
+    }
+
+    // ── Deliveries ─────────────────────────────────────────────────────────
+    match /deliveries/{deliveryId} {
+      allow read: if isAdmin()
+        || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow write: if isAdmin();
+    }
+  }
+}
