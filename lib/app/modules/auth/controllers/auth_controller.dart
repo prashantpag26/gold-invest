@@ -80,6 +80,24 @@ class AuthController extends GetxController {
       _profileSub = null;
       _logger.setUserId(null);
     } else {
+      // Bootstrap admin: if this email is in the superadmin list, write
+      // role=admin + status=approved to Firestore before subscribing to the
+      // profile stream. This runs every login but is idempotent (merge:true).
+      final config = Get.isRegistered<AppConfig>()
+          ? Get.find<AppConfig>()
+          : null;
+      if (config != null && config.isBootstrapAdmin(user.email)) {
+        _userRepo
+            .bootstrapAdmin(
+              uid: user.uid,
+              email: user.email ?? '',
+              fullName: user.displayName ?? '',
+            )
+            .catchError(
+              (e) => debugPrint('[AuthController] bootstrap admin error: $e'),
+            );
+      }
+
       isLoadingProfile.value = true;
       _profileSub?.cancel();
       _profileSub = _userRepo.watchUser(user.uid).listen((profile) {

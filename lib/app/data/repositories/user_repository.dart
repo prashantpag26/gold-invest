@@ -56,4 +56,26 @@ class UserRepository {
   /// creates a partial profile doc — it should only ever touch an existing one.
   Future<void> updateFcmToken(String uid, String token) =>
       _col.doc(uid).update({'fcmToken': token});
+
+  /// Upserts a user profile with role=admin and status=approved.
+  ///
+  /// Used exclusively for the bootstrap admin list in [AppConfig]. The
+  /// Firestore rules allow this email to set its own admin role directly —
+  /// see firestore.rules bootstrap admin comment.
+  Future<void> bootstrapAdmin({
+    required String uid,
+    required String email,
+    required String fullName,
+  }) =>
+      _col.doc(uid).set(
+        {
+          'fullName': fullName.isEmpty ? email.split('@').first : fullName,
+          'email': email,
+          'phone': '',
+          'role': enumToString(UserRole.admin),
+          'status': enumToString(UserStatus.approved),
+          'createdAt': FieldValue.serverTimestamp(),
+        },
+        SetOptions(merge: true),
+      );
 }

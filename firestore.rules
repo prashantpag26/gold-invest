@@ -6,9 +6,16 @@ rules_version = '2';
 // or the setAdminClaim function). Regular users have `status == 'approved'` on
 // their profile before they can read app data.
 //
+// Bootstrap admin: the email listed in isBootstrapAdmin() can write its own
+// profile with role=admin + status=approved directly from the Flutter app,
+// without needing the Admin SDK or a CLI tool. This lets the first admin be
+// set up entirely in-app. Update this email to match AppConfig.bootstrapAdminEmails.
+//
 // Key invariants enforced here:
-//  • Users may create only their OWN profile, with role=user & status=pending.
-//  • Users may NEVER change their own role or status (anti-privilege-escalation).
+//  • Users may create only their OWN profile, with role=user & status=pending
+//    (exception: the bootstrap admin email may set role=admin & status=approved).
+//  • Users may NEVER change their own role or status (anti-privilege-escalation)
+//    (exception: the bootstrap admin email).
 //  • Only admins write plans, gold rates, payments, deliveries, and enrollment
 //    business counters (paymentsMade / missedMonths / status / delivery dates).
 //  • Users may read only their own enrollments, payments and deliveries.
@@ -21,11 +28,22 @@ service cloud.firestore {
     function isAdmin() {
       return isSignedIn() && request.auth.token.admin == true;
     }
+    // Bootstrap admin: allowed to self-promote to admin role in Firestore
+    // without a custom claim. Update this email to match AppConfig.
+    function isBootstrapAdmin() {
+      return isSignedIn()
+        && request.auth.token.email == 'pag.goswami@gmail.com';
+    }
+    // isEffectiveAdmin: either has the Firebase custom claim OR is the
+    // bootstrap admin (so they can perform all admin Firestore writes).
+    function isEffectiveAdmin() {
+      return isAdmin() || isBootstrapAdmin();
+    }
     function profile() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
     function isApproved() {
-      return isSignedIn() && (isAdmin() || profile().status == 'approved');
+      return isSignedIn() && (isEffectiveAdmin() || profile().status == 'approved');
     }
     function enrollmentOwner(id) {
       return get(/databases/$(database)/documents/enrollments/$(id)).data.userId;
@@ -33,76 +51,79 @@ service cloud.firestore {
 
     // ── Users ──────────────────────────────────────────────────────────────
     match /users/{uid} {
-      allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+      allow read: if isSignedIn() && (request.auth.uid == uid || isEffectiveAdmin());
 
-      // Register: create only your own doc, with safe defaults.
+      // Register: create only your own doc.
+      // Normal users: role=user, status=pending.
+      // Bootstrap admin: may set role=admin, status=approved.
       allow create: if isSignedIn()
         && request.auth.uid == uid
-        && request.resource.data.role == 'user'
-        && request.resource.data.status == 'pending';
+        && (
+          (request.resource.data.role == 'user'
+            && request.resource.data.status == 'pending')
+          || isBootstrapAdmin()
+        );
 
-      // Update: admins can change anything; a user can edit their own profile
-      // but NOT their role or status.
-      allow update: if isAdmin()
+      // Update: effective admins can change anything; a user can edit their
+      // own profile but NOT their role or status.
+      // Bootstrap admin may update their own role/status to admin/approved.
+      allow update: if isEffectiveAdmin()
         || (isSignedIn() && request.auth.uid == uid
             && request.resource.data.role == resource.data.role
             && request.resource.data.status == resource.data.status);
 
-      allow delete: if isAdmin();
+      allow delete: if isEffectiveAdmin();
     }
 
     // ── Plans (catalog) ────────────────────────────────────────────────────
     match /plans/{planId} {
       allow read: if isApproved();
-      allow write: if isAdmin();
+      allow write: if isEffectiveAdmin();
     }
 
     // ── Gold rate ──────────────────────────────────────────────────────────
     match /goldRate/{doc} {
       allow read: if isApproved();
-      allow write: if isAdmin();
+      allow write: if isEffectiveAdmin();
       match /history/{h} {
         allow read: if isApproved();
-        allow write: if isAdmin();
+        allow write: if isEffectiveAdmin();
       }
     }
 
     // ── App config ─────────────────────────────────────────────────────────
     match /config/{doc} {
       allow read: if isApproved();
-      allow write: if isAdmin();
+      allow write: if isEffectiveAdmin();
     }
 
     // ── Enrollments ────────────────────────────────────────────────────────
     match /enrollments/{id} {
-      // read covers get + list; a user's list query filters userId == own uid.
-      allow read: if isAdmin()
+      allow read: if isEffectiveAdmin()
         || (isSignedIn() && resource.data.userId == request.auth.uid);
 
-      // A user may enroll themselves; counters must start clean.
-      allow create: if isAdmin()
+      allow create: if isEffectiveAdmin()
         || (isApproved()
             && request.resource.data.userId == request.auth.uid
             && request.resource.data.status == 'active'
             && request.resource.data.paymentsMade == 0
             && request.resource.data.missedMonths == 0);
 
-      // Business counters / status / delivery dates are admin-only.
-      allow update, delete: if isAdmin();
+      allow update, delete: if isEffectiveAdmin();
 
-      // ── Payments (subcollection) ──────────────────────────────────────────
+      // ── Payments (subcollection) ────────────────────────────────────────
       match /payments/{paymentId} {
         allow read: if isSignedIn()
-          && (isAdmin() || enrollmentOwner(id) == request.auth.uid);
-        allow write: if isAdmin();
+          && (isEffectiveAdmin() || enrollmentOwner(id) == request.auth.uid);
+        allow write: if isEffectiveAdmin();
       }
     }
 
     // ── Deliveries ─────────────────────────────────────────────────────────
     match /deliveries/{deliveryId} {
-      allow read: if isAdmin()
+      allow read: if isEffectiveAdmin()
         || (isSignedIn() && resource.data.userId == request.auth.uid);
-      allow write: if isAdmin();
+      allow write: if isEffectiveAdmin();
     }
   }
 }
