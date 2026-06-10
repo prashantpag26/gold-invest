@@ -22,13 +22,36 @@ class PlansView extends GetView<PlansController> {
         if (controller.isLoading.value) {
           return const Center(child: CircularProgressIndicator());
         }
+        if (controller.errorMessage.value.isNotEmpty) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                  const SizedBox(height: 12),
+                  Text(controller.errorMessage.value,
+                      textAlign: TextAlign.center),
+                  const SizedBox(height: 16),
+                  FilledButton.icon(
+                    onPressed: controller.retry,
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Retry'),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
         final plans = controller.activePlans;
         if (plans.isEmpty) {
-          return const EmptyState(
+          return EmptyState(
             icon: Icons.savings_outlined,
             title: 'No plans available',
-            subtitle: 'Please check back later — the admin hasn\'t published '
-                'any plans yet.',
+            subtitle: 'The admin hasn\'t created any investment plans yet.\n'
+                'Sign in as admin to add plans, or run:\n'
+                'node functions/tools/seed.js',
           );
         }
         final rate = Get.find<GoldRateController>().currentRate.value;

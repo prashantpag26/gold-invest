@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -6,7 +7,6 @@ import '../../../../../app/themes/theme_controller.dart';
 import '../../../auth/controllers/auth_controller.dart';
 import '../controllers/profile_controller.dart';
 
-/// Profile + account status + sign out + theme toggle.
 class ProfileView extends GetView<ProfileController> {
   const ProfileView({super.key});
 
@@ -19,9 +19,13 @@ class ProfileView extends GetView<ProfileController> {
       appBar: AppBar(title: const Text('Profile')),
       body: Obx(() {
         final user = authCtrl.appUser.value;
-        if (user == null) {
-          return const Center(child: CircularProgressIndicator());
-        }
+        // Fallback to Firebase Auth data while Firestore profile is loading
+        // or if the profile document doesn't exist yet.
+        final fireUser = FirebaseAuth.instance.currentUser;
+        final displayName =
+            user?.fullName ?? fireUser?.displayName ?? 'User';
+        final email = user?.email ?? fireUser?.email ?? '';
+
         return ListView(
           padding: const EdgeInsets.all(16),
           children: [
@@ -32,15 +36,17 @@ class ProfileView extends GetView<ProfileController> {
                     radius: 40,
                     backgroundColor: theme.colorScheme.primaryContainer,
                     child: Text(
-                      user.fullName.isNotEmpty
-                          ? user.fullName[0].toUpperCase()
+                      displayName.isNotEmpty
+                          ? displayName[0].toUpperCase()
                           : '?',
-                      style: theme.textTheme.headlineMedium,
+                      style: theme.textTheme.headlineMedium?.copyWith(
+                        color: theme.colorScheme.onPrimaryContainer,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 12),
-                  Text(user.fullName, style: theme.textTheme.titleLarge),
-                  Text(user.email, style: theme.textTheme.bodyMedium),
+                  Text(displayName, style: theme.textTheme.titleLarge),
+                  Text(email, style: theme.textTheme.bodyMedium),
                 ],
               ),
             ),
@@ -48,19 +54,40 @@ class ProfileView extends GetView<ProfileController> {
             Card(
               child: Column(
                 children: [
-                  _row(Icons.phone, 'Phone', user.phone),
-                  const Divider(height: 1),
-                  _row(Icons.verified_user, 'Status',
-                      user.status.name.toUpperCase()),
-                  const Divider(height: 1),
-                  _row(Icons.badge, 'Role', user.role.name.toUpperCase()),
-                  if (user.referredBy != null) ...[
+                  if (user != null) ...[
+                    if (user.phone.isNotEmpty)
+                      _row(Icons.phone, 'Phone', user.phone),
                     const Divider(height: 1),
-                    _row(Icons.group, 'Reference', user.referredBy!),
+                    _row(Icons.verified_user, 'Status',
+                        user.status.name.toUpperCase()),
+                    const Divider(height: 1),
+                    _row(Icons.badge, 'Role', user.role.name.toUpperCase()),
+                    if (user.referredBy != null) ...[
+                      const Divider(height: 1),
+                      _row(Icons.group, 'Reference', user.referredBy!),
+                    ],
+                    if (user.createdAt != null) ...[
+                      const Divider(height: 1),
+                      _row(Icons.event, 'Member since',
+                          Fmt.date(user.createdAt)),
+                    ],
+                  ] else ...[
+                    ListTile(
+                      leading: const Icon(Icons.email_outlined),
+                      title: const Text('Email'),
+                      trailing: Text(email,
+                          style: theme.textTheme.bodyMedium),
+                    ),
+                    const Divider(height: 1),
+                    ListTile(
+                      leading: const Icon(Icons.info_outline),
+                      title: const Text('Profile'),
+                      trailing: Text('Syncing…',
+                          style: TextStyle(
+                              color: theme.colorScheme.outline,
+                              fontSize: 12)),
+                    ),
                   ],
-                  const Divider(height: 1),
-                  _row(Icons.event, 'Member since',
-                      Fmt.date(user.createdAt)),
                 ],
               ),
             ),
@@ -74,8 +101,7 @@ class ProfileView extends GetView<ProfileController> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Theme',
-                        style: theme.textTheme.titleSmall),
+                    Text('Theme', style: theme.textTheme.titleSmall),
                     const SizedBox(height: 8),
                     Obx(() {
                       final themeCtrl = Get.find<ThemeController>();
@@ -141,8 +167,6 @@ class ProfileView extends GetView<ProfileController> {
         ],
       ),
     );
-    if (ok == true) {
-      await controller.signOut();
-    }
+    if (ok == true) await controller.signOut();
   }
 }
