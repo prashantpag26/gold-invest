@@ -25,12 +25,18 @@ class AppServices {
   }
 
   static Future<void> _setupAppCheck() async {
-    await FirebaseAppCheck.instance.activate(
-      androidProvider: kDebugMode
-          ? AndroidProvider.debug
-          : AndroidProvider.playIntegrity,
-      appleProvider:
-          kDebugMode ? AppleProvider.debug : AppleProvider.deviceCheck,
-    );
+    // Non-fatal: App Check activation can fail with placeholder credentials or
+    // on first install. The app works without it — don't block startup.
+    try {
+      await FirebaseAppCheck.instance.activate(
+        androidProvider: kDebugMode
+            ? AndroidProvider.debug
+            : AndroidProvider.playIntegrity,
+        appleProvider:
+            kDebugMode ? AppleProvider.debug : AppleProvider.deviceCheck,
+      );
+    } catch (e) {
+      debugPrint('[AppServices] AppCheck activation skipped: $e');
+    }
   }
 }

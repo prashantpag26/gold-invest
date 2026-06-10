@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import 'app/bindings/initial_binding.dart';
+import 'app/modules/auth/controllers/auth_controller.dart';
 import 'app/routes/app_pages.dart';
 import 'app/routes/app_routes.dart';
 import 'app/utils/app_config.dart';
@@ -35,6 +36,9 @@ class GoldInvestApp extends StatelessWidget {
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
       themeMode: ThemeMode.system,
+      // Once the navigator is mounted, run the first route evaluation.
+      // This catches the case where ever() fired before the navigator was ready.
+      onReady: () => Get.find<AuthController>().onRouterReady(),
     );
   }
 }

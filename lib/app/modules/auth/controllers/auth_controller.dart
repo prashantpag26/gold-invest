@@ -58,6 +58,7 @@ class AuthController extends GetxController {
 
     ever(firebaseUser, (_) => _reevaluateRoute());
     ever(appUser, (_) => _reevaluateRoute());
+    ever(isLoadingProfile, (_) => _reevaluateRoute());
   }
 
   @override
@@ -86,21 +87,37 @@ class AuthController extends GetxController {
         isLoadingProfile.value = false;
         if (profile != null) _logger.setUserId(profile.uid);
       });
+      // Safety timeout: if Firestore doesn't respond within 8 seconds
+      // (e.g. no internet, bad credentials), unblock the loading state so the
+      // app can navigate rather than staying frozen on the splash screen.
+      Future.delayed(const Duration(seconds: 8), () {
+        if (isLoadingProfile.value) {
+          isLoadingProfile.value = false;
+        }
+      });
     }
   }
 
   // ── Route re-evaluation ─────────────────────────────────────────────────────
-  /// Re-computes the canonical route for current auth state and navigates only
-  /// if it differs from the current route. Replaces the go_router
-  /// `refreshListenable` approach that re-evaluated the redirect on every
-  /// auth/profile stream event.
+  /// Re-computes the canonical route and navigates when the target differs.
+  ///
+  /// Guard: skip if the navigator hasn't mounted yet (ever() can fire before
+  /// GetMaterialApp finishes building, making Get.offAllNamed a no-op that
+  /// leaves the app frozen on the splash screen).
   void _reevaluateRoute() {
+    // Navigator not ready yet — wait for the next event.
+    if (Get.key.currentState == null) return;
+
     final current = Get.currentRoute;
     final target = _targetRoute(current);
     if (target != null && target != current) {
       Get.offAllNamed(target);
     }
   }
+
+  /// Called from GoldInvestApp.onReady() once the navigator is mounted.
+  /// Runs the first evaluation that may have been skipped above.
+  void onRouterReady() => _reevaluateRoute();
 
   String? _targetRoute(String current) {
     // 1. Auth stream not yet resolved.
